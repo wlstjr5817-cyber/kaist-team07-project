@@ -2,7 +2,7 @@
 
 Team: #07 / Wine not?
 Written on: 2026-10-04
-I wrote this before reading anyone else's list: [yes / no]
+I wrote this before reading anyone else's list: yes
 
 Copy this file, rename it after yourself (for example `gildong.md`), and fill it in alone.
 Do this before your team meets to merge, and do not read anyone else's list first.
