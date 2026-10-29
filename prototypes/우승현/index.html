@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>말로일기 · 후속 질문</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --ink: #2b2620;
+    --muted: #8a8174;
+    --line: #e7e0d5;
+    --accent: #c97a2b;
+    --accent-ink: #ffffff;
+    --rec: #d64545;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    line-height: 1.6;
+  }
+  main {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+  }
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+  .step { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .prompt {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 18px;
+    font-size: 18px;
+    margin-bottom: 28px;
+  }
+
+  .mic-area { text-align: center; margin-bottom: 24px; }
+  .mic {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 44px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  }
+  .mic.recording {
+    background: var(--rec);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+  .mic-label { margin-top: 12px; color: var(--muted); font-size: 14px; }
+  .interim { min-height: 1.6em; color: var(--muted); font-size: 15px; margin-top: 8px; }
+
+  .notice {
+    background: #fff4e5;
+    border: 1px solid #f0d3a8;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  label.box-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 16px;
+    background: var(--card);
+    color: var(--ink);
+    resize: vertical;
+  }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+  .next {
+    border: none;
+    border-radius: 999px;
+    padding: 12px 24px;
+    font: inherit;
+    font-size: 16px;
+    background: var(--ink);
+    color: #fff;
+    cursor: pointer;
+  }
+  .next:disabled { opacity: 0.35; cursor: default; }
+
+  .result h2 { font-size: 16px; margin: 28px 0 10px; }
+  .result .diary {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    white-space: pre-wrap;
+  }
+  .qa { margin-bottom: 14px; }
+  .qa .q { color: var(--accent); font-weight: 600; }
+  .qa .a { white-space: pre-wrap; padding-left: 12px; border-left: 3px solid var(--line); }
+  .restart {
+    margin-top: 32px;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 20px;
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>말로일기</h1>
+    <p>오늘 하루를 말로 남기고, 짧은 질문 세 개에 답해 보세요.</p>
+  </header>
+
+  <section id="input-screen">
+    <div class="step" id="step"></div>
+    <div class="prompt" id="prompt"></div>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <div class="mic-area" id="mic-area">
+      <button class="mic" id="mic" type="button" aria-label="말하기 시작">🎤</button>
+      <div class="mic-label" id="mic-label">눌러서 말하기</div>
+      <div class="interim" id="interim"></div>
+    </div>
+
+    <label class="box-label" for="text" id="text-label">받아쓴 글 (직접 고칠 수 있어요)</label>
+    <textarea id="text"></textarea>
+
+    <div class="actions">
+      <button class="next" id="next" type="button" disabled>다음</button>
+    </div>
+  </section>
+
+  <section id="result-screen" class="result" hidden>
+    <h2>오늘의 일기</h2>
+    <div class="diary" id="result-diary"></div>
+    <h2>나눈 이야기</h2>
+    <div id="result-qa"></div>
+    <button class="restart" id="restart" type="button">처음부터 다시</button>
+  </section>
+</main>
+
+<script>
+  // 감정 단어: 일기나 답변에서 찾을 어간과, 질문에 넣을 이름
+  const EMOTIONS = [
+    { stems: ['속상'], label: '속상함' },
+    { stems: ['짜증'], label: '짜증' },
+    { stems: ['화나', '화났', '화가 나', '화가 났'], label: '화' },
+    { stems: ['답답'], label: '답답함' },
+    { stems: ['서운', '섭섭'], label: '서운함' },
+    { stems: ['우울'], label: '우울함' },
+    { stems: ['슬프', '슬펐', '슬퍼'], label: '슬픔' },
+    { stems: ['외로', '외롭'], label: '외로움' },
+    { stems: ['불안'], label: '불안' },
+    { stems: ['걱정'], label: '걱정' },
+    { stems: ['긴장'], label: '긴장' },
+    { stems: ['무서', '무섭', '두려'], label: '두려움' },
+    { stems: ['피곤'], label: '피곤함' },
+    { stems: ['지치', '지쳤', '지쳐'], label: '지친 마음' },
+    { stems: ['힘들', '힘든', '힘드'], label: '힘듦' },
+    { stems: ['억울'], label: '억울함' },
+    { stems: ['후회'], label: '후회' },
+    { stems: ['부끄', '창피'], label: '부끄러움' },
+    { stems: ['미안'], label: '미안함' },
+    { stems: ['실망'], label: '실망' },
+    { stems: ['당황'], label: '당황스러움' },
+    { stems: ['기쁘', '기뻤', '기뻐'], label: '기쁨' },
+    { stems: ['행복'], label: '행복' },
+    { stems: ['설레', '설렜', '설렘'], label: '설렘' },
+    { stems: ['뿌듯'], label: '뿌듯함' },
+    { stems: ['고마', '고맙', '감사'], label: '고마움' },
+    { stems: ['편안', '편했'], label: '편안함' },
+    { stems: ['즐거', '즐겁', '신나', '신났'], label: '즐거움' },
+    { stems: ['재밌', '재미있', '재미'], label: '재미' },
+    { stems: ['안심', '다행'], label: '안도감' },
+    { stems: ['좋았', '좋아서', '좋더라'], label: '좋은 기분' },
+  ];
+
+  // 텍스트에서 가장 먼저 나오는 감정 단어를 찾는다. 없으면 null
+  function findEmotion(text) {
+    let best = null;
+    for (const emotion of EMOTIONS) {
+      for (const stem of emotion.stems) {
+        const index = text.indexOf(stem);
+        if (index !== -1 && (best === null || index < best.index)) {
+          best = { index, label: emotion.label };
+        }
+      }
+    }
+    return best ? best.label : null;
+  }
+
+  // 받침이 있으면 '을', 없으면 '를'
+  function objectParticle(word) {
+    const code = word.charCodeAt(word.length - 1) - 0xac00;
+    if (code < 0 || code > 11171) return '을(를)';
+    return code % 28 === 0 ? '를' : '을';
+  }
+
+  function question1(diary) {
+    const label = findEmotion(diary);
+    if (label) {
+      return `오늘 일기에서 '${label}'${objectParticle(label)} 느끼신 것 같은데, 언제 가장 그랬어요?`;
+    }
+    return '오늘 가장 기억에 남는 순간은 언제였어요?';
+  }
+
+  function question2(answer1) {
+    return findEmotion(answer1) ? '왜 그런 기분이 들었을까요?' : '그때 기분을 한 단어로 하면요?';
+  }
+
+  const QUESTION3 = '지금 돌아보면 어떤 생각이 들어요?';
+
+  // 상태: step 0은 일기, 1~3은 질문
+  const state = { step: 0, diary: '', questions: [], answers: [] };
+
+  const $ = (id) => document.getElementById(id);
+  const stepEl = $('step');
+  const promptEl = $('prompt');
+  const noticeEl = $('notice');
+  const micArea = $('mic-area');
+  const micBtn = $('mic');
+  const micLabel = $('mic-label');
+  const interimEl = $('interim');
+  const textLabel = $('text-label');
+  const textEl = $('text');
+  const nextBtn = $('next');
+
+  // ---- 음성 인식 ----
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let speechAvailable = Boolean(SpeechRecognition);
+  let recognition = null;
+  let recording = false;
+
+  function disableSpeech(message) {
+    speechAvailable = false;
+    stopRecording();
+    micArea.hidden = true;
+    textLabel.textContent = '여기에 적어 주세요';
+    noticeEl.textContent = message;
+    noticeEl.hidden = false;
+    textEl.focus();
+  }
+
+  function startRecording() {
+    if (!speechAvailable || recording) return;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ko-KR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          const said = result[0].transcript.trim();
+          if (said) {
+            const current = textEl.value.trimEnd();
+            textEl.value = current ? `${current} ${said}` : said;
+            updateNext();
+          }
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      interimEl.textContent = interim;
+    };
+
+    recognition.onerror = (event) => {
+      if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(event.error)) {
+        disableSpeech('마이크를 쓸 수 없어서 글로 입력하도록 바꿨어요.');
+      } else if (event.error === 'network') {
+        disableSpeech('음성 인식 서버에 연결할 수 없어서 글로 입력하도록 바꿨어요.');
+      }
+      // 'no-speech', 'aborted'는 녹음만 멈춘다 (onend에서 처리)
+    };
+
+    recognition.onend = () => {
+      recording = false;
+      recognition = null;
+      interimEl.textContent = '';
+      renderMic();
+    };
+
+    try {
+      recognition.start();
+      recording = true;
+      renderMic();
+    } catch (error) {
+      disableSpeech('음성 인식을 시작할 수 없어서 글로 입력하도록 바꿨어요.');
+    }
+  }
+
+  function stopRecording() {
+    if (recognition) recognition.stop();
+  }
+
+  function renderMic() {
+    micBtn.classList.toggle('recording', recording);
+    micBtn.setAttribute('aria-label', recording ? '말하기 멈추기' : '말하기 시작');
+    micLabel.textContent = recording ? '듣고 있어요 · 눌러서 멈추기' : '눌러서 말하기';
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (recording) stopRecording();
+    else startRecording();
+  });
+
+  // ---- 화면 흐름 ----
+  function updateNext() {
+    nextBtn.disabled = textEl.value.trim() === '';
+  }
+
+  function renderStep() {
+    if (state.step === 0) {
+      stepEl.textContent = '오늘의 일기';
+      promptEl.textContent = '오늘 하루는 어땠어요? 편하게 말해 주세요.';
+    } else {
+      stepEl.textContent = `질문 ${state.step} / 3`;
+      promptEl.textContent = state.questions[state.step - 1];
+    }
+    nextBtn.textContent = state.step === 3 ? '마치기' : '다음';
+    textEl.value = '';
+    interimEl.textContent = '';
+    updateNext();
+    if (!speechAvailable) textEl.focus();
+  }
+
+  function goNext() {
+    const text = textEl.value.trim();
+    if (!text) return;
+    stopRecording();
+
+    if (state.step === 0) {
+      state.diary = text;
+      state.questions.push(question1(text));
+    } else {
+      state.answers.push(text);
+      if (state.step === 1) state.questions.push(question2(text));
+      if (state.step === 2) state.questions.push(QUESTION3);
+    }
+
+    if (state.step === 3) {
+      showResult();
+      return;
+    }
+    state.step += 1;
+    renderStep();
+  }
+
+  function showResult() {
+    $('input-screen').hidden = true;
+    $('result-screen').hidden = false;
+    $('result-diary').textContent = state.diary;
+
+    const qaEl = $('result-qa');
+    qaEl.textContent = '';
+    state.questions.forEach((question, i) => {
+      const item = document.createElement('div');
+      item.className = 'qa';
+      const q = document.createElement('div');
+      q.className = 'q';
+      q.textContent = question;
+      const a = document.createElement('div');
+      a.className = 'a';
+      a.textContent = state.answers[i];
+      item.append(q, a);
+      qaEl.append(item);
+    });
+  }
+
+  function restart() {
+    state.step = 0;
+    state.diary = '';
+    state.questions = [];
+    state.answers = [];
+    $('result-screen').hidden = true;
+    $('input-screen').hidden = false;
+    renderStep();
+  }
+
+  textEl.addEventListener('input', updateNext);
+  nextBtn.addEventListener('click', goNext);
+  $('restart').addEventListener('click', restart);
+
+  // ---- 시작 ----
+  if (!speechAvailable) {
+    disableSpeech('이 브라우저는 음성 인식을 지원하지 않아서 글로 입력해요. 말로 쓰려면 Chrome에서 열어 주세요.');
+  } else if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'microphone' })
+      .then((status) => {
+        if (status.state === 'denied') {
+          disableSpeech('마이크 권한이 꺼져 있어서 글로 입력하도록 바꿨어요.');
+        }
+      })
+      .catch(() => {});
+  }
+  renderStep();
+</script>
+</body>
+</html>
