@@ -3,6 +3,7 @@
 기존 말로일기의 내 일기·사진·기억 찾기·설정을 유지하면서 P0 음성 작성 흐름을 추가한 모바일 웹앱입니다.
 
 - 앱: https://malro-diary.jinseokyang.chatgpt.site/ (기존 본인 전용 접근 권한 유지)
+- WhyTree 슬라이드: [양진석-whytree.pptx](./양진석-whytree.pptx)
 - 명세: ../../docs/specs/양진석-voice-diary.md
 - 검증과 아직 남은 본인 검사: VALIDATION.md
 
