@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>말로일기 프로토타입</title>
+<style>
+  :root {
+    --bg: #FAF8F3;
+    --card: #FFFFFF;
+    --ink: #1F2A2E;
+    --muted: #6A7179;
+    --line: #DDD8CC;
+    --green: #2F6B4F;
+    --green-soft: #E6EFEA;
+    --orange: #C8792B;
+    --red: #B3412F;
+    --red-soft: #F8E7E3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 520px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; color: var(--green); }
+  .sub { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+
+  /* 달력 */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-head strong { font-size: 17px; }
+  .nav { border: 1px solid var(--line); background: var(--card); border-radius: 8px; width: 36px; height: 36px; font-size: 18px; cursor: pointer; color: var(--ink); }
+  .nav:disabled { opacity: .3; cursor: default; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+  .dow { font-size: 12px; color: var(--muted); padding: 4px 0; }
+  .dow.sun { color: var(--red); }
+  .day { aspect-ratio: 1 / 1; border: none; border-radius: 10px; background: transparent; font-size: 15px; color: var(--ink); cursor: pointer; }
+  .day:hover:not(:disabled) { background: var(--green-soft); }
+  .day:disabled { color: #C5C1B6; cursor: default; }
+  .day.today { font-weight: 700; outline: 2px solid var(--orange); outline-offset: -2px; }
+  .day.selected { background: var(--green); color: #fff; }
+
+  /* 기록 */
+  .date-title { font-size: 17px; font-weight: 700; margin: 0 0 12px; }
+  .rec-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  #recBtn {
+    flex: 0 0 auto; border: none; border-radius: 999px; padding: 12px 20px;
+    background: var(--green); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  #recBtn.on { background: var(--red); }
+  #recBtn:disabled { opacity: .5; cursor: default; }
+  #timer { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 15px; }
+  #timer.on { color: var(--red); font-weight: 700; }
+  #interim { min-height: 1.5em; color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+  textarea {
+    width: 100%; min-height: 200px; resize: vertical; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; font: inherit; font-size: 16px; color: var(--ink); background: #fff;
+  }
+  textarea:read-only { background: #F4F2EC; }
+  .hint { font-size: 13px; color: var(--muted); margin: 6px 0 12px; }
+  .save-row { display: flex; align-items: center; gap: 12px; }
+  #saveBtn { border: 1px solid var(--green); background: #fff; color: var(--green); border-radius: 10px; padding: 10px 18px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  #saveBtn:disabled { opacity: .5; cursor: default; }
+  #saveState { font-size: 14px; color: var(--muted); }
+  #saveState.dirty { color: var(--orange); }
+
+  #msg { display: none; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; background: var(--red-soft); color: var(--red); }
+  #msg.show { display: block; }
+  #msg.info { background: var(--green-soft); color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>말로일기</h1>
+  <p class="sub">날짜를 고르고, 버튼을 눌러 오늘 하루를 말해 보세요.</p>
+
+  <section class="card" aria-label="달력">
+    <div class="cal-head">
+      <button class="nav" id="prevMonth" aria-label="이전 달">‹</button>
+      <strong id="monthLabel"></strong>
+      <button class="nav" id="nextMonth" aria-label="다음 달">›</button>
+    </div>
+    <div class="grid" id="calendar"></div>
+  </section>
+
+  <section class="card" aria-label="기록">
+    <p class="date-title" id="dateTitle"></p>
+    <div id="msg" role="status"></div>
+    <div class="rec-row">
+      <button id="recBtn">● 녹음 시작</button>
+      <span id="timer">0:00 / 3:00</span>
+    </div>
+    <p id="interim" aria-live="polite"></p>
+    <textarea id="diary" placeholder="말한 내용이 여기에 글로 들어와요. 직접 고칠 수도 있어요."></textarea>
+    <p class="hint">녹음이 안 되면 이 칸을 누르고 휴대폰 키보드의 마이크 버튼으로 말해도 돼요.</p>
+    <div class="save-row">
+      <button id="saveBtn">저장</button>
+      <span id="saveState"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ----- 설정 -----
+  var MAX_SECONDS = 180; // 최대 3분
+  var KEY_PREFIX = "maloilgi:";
+  var MSG = {
+    unsupported: "이 브라우저에서는 녹음이 안 돼요. Chrome이나 Safari를 쓰거나, 아래 칸에서 키보드 마이크로 말해 주세요.",
+    denied: "마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.",
+    nothing: "들리지 않았어요. 다시 눌러 말해 주세요.",
+    limit: "3분이 지났어요. 더 말하려면 버튼을 다시 누르세요."
+  };
+
+  // ----- 화면 요소 -----
+  var $ = function (id) { return document.getElementById(id); };
+  var calEl = $("calendar"), monthLabel = $("monthLabel");
+  var prevBtn = $("prevMonth"), nextBtn = $("nextMonth");
+  var dateTitle = $("dateTitle"), msgEl = $("msg");
+  var recBtn = $("recBtn"), timerEl = $("timer"), interimEl = $("interim");
+  var diary = $("diary"), saveBtn = $("saveBtn"), saveState = $("saveState");
+
+  // ----- 날짜 도우미 -----
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function keyOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  var today = startOfDay(new Date());
+  var selected = today;
+  var viewYear = today.getFullYear(), viewMonth = today.getMonth();
+
+  // ----- 저장소 (브라우저 저장소, 실패해도 화면은 동작) -----
+  function load(dateKey) {
+    try { return window.localStorage.getItem(KEY_PREFIX + dateKey) || ""; } catch (e) { return ""; }
+  }
+  function save(dateKey, text) {
+    try { window.localStorage.setItem(KEY_PREFIX + dateKey, text); return true; } catch (e) { return false; }
+  }
+
+  // ----- 안내 문구 -----
+  function showMsg(text, kind) {
+    msgEl.textContent = text;
+    msgEl.className = "show" + (kind === "info" ? " info" : "");
+  }
+  function clearMsg() { msgEl.textContent = ""; msgEl.className = ""; }
+
+  // ----- 저장 상태 표시 -----
+  var savedText = "";
+  function refreshSaveState() {
+    if (diary.value === savedText) {
+      saveState.textContent = savedText ? "저장됨" : "";
+      saveState.className = "";
+    } else {
+      saveState.textContent = "저장하지 않은 내용이 있어요";
+      saveState.className = "dirty";
+    }
+  }
+
+  // ----- 달력 -----
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  function renderCalendar() {
+    monthLabel.textContent = viewYear + "년 " + (viewMonth + 1) + "월";
+    nextBtn.disabled = (viewYear === today.getFullYear() && viewMonth === today.getMonth());
+    calEl.innerHTML = "";
+    DOW.forEach(function (d, i) {
+      var h = document.createElement("div");
+      h.className = "dow" + (i === 0 ? " sun" : "");
+      h.textContent = d;
+      calEl.appendChild(h);
+    });
+    var first = new Date(viewYear, viewMonth, 1);
+    var days = new Date(viewYear, viewMonth + 1, 0).getDate();
+    for (var i = 0; i < first.getDay(); i++) calEl.appendChild(document.createElement("div"));
+    for (var day = 1; day <= days; day++) {
+      var d = new Date(viewYear, viewMonth, day);
+      var b = document.createElement("button");
+      b.className = "day";
+      b.textContent = day;
+      b.setAttribute("aria-label", keyOf(d));
+      if (d > today) b.disabled = true; // 미래 날짜는 고를 수 없음
+      if (d.getTime() === today.getTime()) b.classList.add("today");
+      if (d.getTime() === selected.getTime()) b.classList.add("selected");
+      b.addEventListener("click", (function (date) { return function () { selectDate(date); }; })(d));
+      calEl.appendChild(b);
+    }
+  }
+  prevBtn.addEventListener("click", function () {
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar();
+  });
+  nextBtn.addEventListener("click", function () {
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar();
+  });
+
+  function selectDate(d) {
+    if (recording) return; // 녹음 중에는 날짜를 바꾸지 않음
+    selected = d;
+    var w = DOW[d.getDay()];
+    dateTitle.textContent = d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일 (" + w + ")";
+    savedText = load(keyOf(d));
+    diary.value = savedText;
+    interimEl.textContent = "";
+    clearMsg();
+    refreshSaveState();
+    renderCalendar();
+  }
+
+  // ----- 저장 -----
+  saveBtn.addEventListener("click", function () {
+    if (save(keyOf(selected), diary.value)) {
+      savedText = diary.value;
+      refreshSaveState();
+      showMsg("저장했어요.", "info");
+    } else {
+      showMsg("이 브라우저에서는 저장할 수 없어요. 개인정보 보호(시크릿) 모드인지 확인해 주세요.");
+    }
+  });
+  diary.addEventListener("input", refreshSaveState);
+
+  // ----- 음성 인식 -----
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = null;
+  var recording = false;   // 사용자가 녹음 중이라고 본 상태
+  var stopReason = "";     // "user" | "limit" | "denied"
+  var baseText = "";       // 이번 인식 세션 전에 칸에 있던 글
+  var sessionFinal = "";   // 이번 인식 세션에서 확정된 글
+  var addedThisPress = false;
+  var startedAt = 0, tick = null;
+
+  function joinText(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    return a.replace(/\s+$/, "") + "\n" + b.replace(/^\s+/, "");
+  }
+
+  function setRecordingUI(on) {
+    recBtn.textContent = on ? "■ 녹음 끝내기" : "● 녹음 시작";
+    recBtn.classList.toggle("on", on);
+    timerEl.classList.toggle("on", on);
+    diary.readOnly = on; // 녹음 중에는 칸을 잠가서 글이 섞이지 않게 함
+    prevBtn.disabled = on;
+    if (!on) renderCalendar(); else nextBtn.disabled = true;
+    Array.prototype.forEach.call(calEl.querySelectorAll(".day"), function (b) { if (on) b.disabled = true; });
+  }
+
+  function updateTimer() {
+    var s = Math.min(MAX_SECONDS, Math.floor((Date.now() - startedAt) / 1000));
+    timerEl.textContent = Math.floor(s / 60) + ":" + pad(s % 60) + " / 3:00";
+    if (s >= MAX_SECONDS) stopRecording("limit");
+  }
+
+  function newSession() {
+    recognition = new SR();
+    recognition.lang = "ko-KR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    baseText = diary.value;
+    sessionFinal = "";
+
+    recognition.onresult = function (e) {
+      var interim = "";
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) sessionFinal += t;
+        else interim += t;
+      }
+      if (sessionFinal.trim()) {
+        diary.value = joinText(baseText, sessionFinal.trim());
+        addedThisPress = true;
+        refreshSaveState();
+      }
+      interimEl.textContent = interim;
+    };
+
+    recognition.onerror = function (e) {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        stopReason = "denied";
+        recording = false;
+      }
+      // "no-speech"는 onend에서 함께 처리
+    };
+
+    recognition.onend = function () {
+      interimEl.textContent = "";
+      if (recording) {
+        // 사용자가 끝내지 않았는데 브라우저가 스스로 멈춘 경우: 3분 안이면 이어서 다시 듣기
+        try { newSession(); recognition.start(); return; } catch (err) { recording = false; }
+      }
+      finishRecording();
+    };
+  }
+
+  function startRecording() {
+    if (!SR) { showMsg(MSG.unsupported); return; }
+    clearMsg();
+    recording = true;
+    stopReason = "";
+    addedThisPress = false;
+    startedAt = Date.now();
+    updateTimer();
+    tick = setInterval(updateTimer, 250);
+    setRecordingUI(true);
+    try {
+      newSession();
+      recognition.start();
+    } catch (err) {
+      recording = false;
+      finishRecording();
+    }
+  }
+
+  function stopRecording(reason) {
+    if (!recording) return;
+    stopReason = reason;
+    recording = false;
+    try { recognition.stop(); } catch (err) { finishRecording(); }
+  }
+
+  function finishRecording() {
+    clearInterval(tick);
+    tick = null;
+    setRecordingUI(false);
+    if (stopReason === "denied") showMsg(MSG.denied);
+    else if (stopReason === "limit") showMsg(MSG.limit, "info");
+    else if (!addedThisPress) showMsg(MSG.nothing);
+    refreshSaveState();
+  }
+
+  recBtn.addEventListener("click", function () {
+    if (recording) stopRecording("user");
+    else startRecording();
+  });
+
+  // ----- 시작 -----
+  if (!SR) showMsg(MSG.unsupported);
+  selectDate(today);
+  if (!SR) showMsg(MSG.unsupported);
+})();
+</script>
+</body>
+</html>
