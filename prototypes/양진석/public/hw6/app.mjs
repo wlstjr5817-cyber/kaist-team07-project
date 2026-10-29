@@ -2,7 +2,7 @@ import {DiarySession} from './core.mjs';
 import {VoiceRecorder} from './recorder.mjs';
 import * as storage from './storage.mjs';
 const $=id=>document.getElementById(id),testing=new URLSearchParams(location.search).has('test');
-let session=null,rows=[],currentId=null,starting=false,stopping=false,saving=false,diaryId=null;
+let startedAt='',session=null,rows=[],currentId=null,starting=false,stopping=false,saving=false,diaryId=null;
 const notice=text=>{$('notice').textContent=text;$('notice').hidden=!text;};
 const node=(tag,text,className)=>{const n=document.createElement(tag);n.textContent=text;if(className)n.className=className;return n;};
 function injected(id){if(testing&&$(id).checked){$(id).checked=false;throw Error('검사를 위해 요청 실패를 재현했어요. 확보된 글은 그대로예요.');}}
@@ -47,7 +47,7 @@ async function start(replaceId){
   finally{starting=false;render();}
 }
 $('new').onclick=()=>{
-  diaryId=crypto.randomUUID();session=new DiarySession({onChange:render,transcribe:async(blob,id)=>{injected('fail-transcribe');const form=new FormData();form.set('file',blob,'segment.'+(blob.type.includes('mp4')?'m4a':'webm'));form.set('entryId',id);return(await request('/api/transcribe',form)).text;},polish:async text=>{injected('fail-polish');return(await request('/api/polish',{text})).text;}});
+  startedAt=new Date().toISOString();diaryId=crypto.randomUUID();session=new DiarySession({onChange:render,transcribe:async(blob,id)=>{injected('fail-transcribe');const form=new FormData();form.set('file',blob,'segment.'+(blob.type.includes('mp4')?'m4a':'webm'));form.set('entryId',id);return(await request('/api/transcribe',form)).text;},polish:async text=>{injected('fail-polish');return(await request('/api/polish',{text})).text;}});
   notice('');$('decision').hidden=true;$('clock').innerHTML='00:00 <span>/ 03:00</span>';show('compose');render();
 };
 $('record').onclick=()=>{if(recorder.active){stopping=true;recorder.stop();render();}else void start();};
@@ -57,12 +57,14 @@ $('draft').oninput=()=>{session.draft=$('draft').value;$('save').disabled=!sessi
 $('retry').onclick=()=>{if(!locked()&&session.draft.trim())void session.clean();};
 $('save').onclick=async()=>{
   if(locked()||!session.draft.trim())return;saving=true;notice('');render();
-  try{injected('fail-save');const row=await storage.save({id:diaryId,date:session.date,text:session.draft});rows=[row,...rows.filter(r=>r.id!==row.id)];session=null;renderList();show('home');notice('일기를 저장했어요.');}
+  try{injected('fail-save');const row=await storage.save({id:diaryId,date:session.date,text:session.draft,createdAt:startedAt});rows=[row,...rows.filter(r=>r.id!==row.id)];session=null;renderList();show('home');notice('일기를 저장했어요.');location.assign('/?'+(testing?'selftest=1&':'')+'entry='+encodeURIComponent(row.id));}
   catch(e){notice('기기에 저장하지 못했어요. 작성한 글은 그대로 있으니 저장 공간을 확인하고 다시 눌러주세요.');}
   finally{saving=false;render();}
 };
-$('leave').onclick=()=>{if(locked()||session.pending)return;if(session.segments.length&&!confirm('아직 저장하지 않은 글이 있어요. 이 일기를 나갈까요?'))return;session=null;notice('');show('home');};
+$('leave').onclick=()=>{if(locked()||session.pending)return;if(session.segments.length){$('discard').hidden=false;return;}location.assign('/'+(testing?'?selftest=1':''));};
 $('back').onclick=()=>show('home');
+$('keep-writing').onclick=()=>{$('discard').hidden=true;};
+$('discard-confirm').onclick=()=>{session=null;location.assign('/'+(testing?'?selftest=1':''));};
 function renderList(){
   $('count').textContent=`${rows.length}개의 기록`;$('entries').replaceChildren();
   if(!rows.length){$('entries').append(node('div','아직 남겨 둔 하루가 없어요.\n첫 이야기를 가볍게 시작해보세요.','empty'));return;}
@@ -71,7 +73,9 @@ function renderList(){
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&recorder.active){stopping=true;recorder.stop('interrupted');render();}});
 window.addEventListener('beforeunload',e=>{if(session&&(session.segments.length||recorder.active)){e.preventDefault();e.returnValue='';}});
 $('testing').hidden=!testing;
+$('library-link').href='/'+(testing?'?selftest=1':'');
 $('fixture').onclick=async()=>{if(!testing||locked()||session?.stage!=='record'){notice('새 일기를 열고 녹음 단계에서 검사해주세요.');return;}try{const response=await fetch('/hw6/qa-test.wav');if(!response.ok)throw Error('합성 음성 예제를 읽지 못했어요.');const id=session.reserve();session.enqueue(id,await response.blob());notice('합성 음성 검사 구간을 추가했어요. 처리 결과를 확인해주세요.');}catch(e){notice(e.message);}};
 try{rows=await storage.list();renderList();}catch{notice('기기 저장소를 열지 못했어요. 브라우저의 저장 공간과 설정을 확인해주세요.');}
+if(new URLSearchParams(location.search).has('compose'))$('new').click();
 // The previous app shell is managed by its existing service worker. Keep it current.
 if('serviceWorker'in navigator)navigator.serviceWorker.getRegistration('/').then(r=>r?.update()).catch(()=>{});

@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "말로일기",
+    "slug": "malhaedum",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/app-icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/app-icon.png",
+      "name": "말로일기 · 말하면 바로 남는 일기"
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "말로 남긴 순간을 녹음하기 위해 마이크를 사용합니다."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "직접 선택한 사진을 기록에 첨부합니다.",
+          "cameraPermission": false
+        }
+      ],
+      "expo-sqlite",
+      "expo-sharing"
+    ]
+  }
+}

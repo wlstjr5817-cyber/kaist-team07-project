@@ -1,1 +1,40 @@
-{"name":"malro-diary-hw6","version":"0.7.0","private":true,"type":"module","scripts":{"start":"node --env-file-if-exists=.env server.mjs","test":"node --test tests/*.test.mjs"},"engines":{"node":">=22"},"devDependencies":{"fake-indexeddb":"^6.2.6"}}
+{
+  "name": "malro-diary-hw6",
+  "version": "0.8.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/metro-runtime": "~58.0.15",
+    "@expo/vector-icons": "^15.0.2",
+    "expo": "~58.0.19",
+    "expo-audio": "~58.0.10",
+    "expo-file-system": "~58.0.11",
+    "expo-image-picker": "~58.0.10",
+    "expo-media-library": "~58.0.12",
+    "expo-sharing": "~58.0.20",
+    "expo-sqlite": "~58.0.14",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3",
+    "fake-indexeddb": "^6.2.6"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build-cloud.mjs",
+    "serve": "node --env-file-if-exists=.env server/server.mjs",
+    "demo": "node scripts/start-demo.mjs",
+    "preview:cloud": "node scripts/preview-cloud.mjs",
+    "prototype": "node --env-file-if-exists=.env server.mjs"
+  },
+  "private": true
+}
